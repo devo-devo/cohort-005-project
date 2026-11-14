@@ -1,8 +1,11 @@
-import { Outlet } from "react-router";
+import { Outlet, useSearchParams } from "react-router";
 import type { Route } from "./+types/layout.app";
 import { Sidebar } from "~/components/sidebar";
 import { DevUI } from "~/components/dev-ui";
 import { Toaster } from "sonner";
+// PROTOTYPE: notification UX variants — throwaway, see notification-prototype.tsx
+import { PrototypeSwitcher } from "~/components/prototype-switcher";
+import { PrototypeTopBar } from "~/components/notification-prototype";
 import { getCurrentUserId, getDevCountry } from "~/lib/session";
 import { getCountryTierInfo, COUNTRIES } from "~/lib/ppp";
 import { eq, and, or, sql, desc } from "drizzle-orm";
@@ -227,6 +230,12 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
     isTeamAdmin: userIsTeamAdmin,
   } = loaderData;
 
+  // PROTOTYPE: notification UX variants — throwaway, gated behind ?variant=
+  const [searchParams] = useSearchParams();
+  const prototypeVariant = import.meta.env.PROD
+    ? null
+    : searchParams.get("variant");
+
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar
@@ -234,9 +243,18 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
         recentCourses={recentCourses}
         isTeamAdmin={userIsTeamAdmin}
       />
-      <main className="flex-1 overflow-y-auto">
-        <Outlet />
-      </main>
+      {prototypeVariant === "b" ? (
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          <PrototypeTopBar currentUser={currentUser} />
+          <main className="flex-1 overflow-y-auto">
+            <Outlet />
+          </main>
+        </div>
+      ) : (
+        <main className="flex-1 overflow-y-auto">
+          <Outlet />
+        </main>
+      )}
       <DevUI
         users={users}
         currentUser={currentUser}
@@ -245,6 +263,7 @@ export default function AppLayout({ loaderData }: Route.ComponentProps) {
         countries={countries}
       />
       <Toaster position="bottom-right" richColors closeButton />
+      <PrototypeSwitcher />
     </div>
   );
 }

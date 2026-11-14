@@ -1,8 +1,10 @@
-import { NavLink, Form } from "react-router";
+import { NavLink, Form, useSearchParams } from "react-router";
 import { useState, useEffect } from "react";
 import { cn } from "~/lib/utils";
 import { UserRole } from "~/db/schema";
 import { UserAvatar } from "~/components/user-avatar";
+// PROTOTYPE: notification UX variants — throwaway, see notification-prototype.tsx
+import { PrototypeSidebarBell, PrototypeSidebarNavItem } from "~/components/notification-prototype";
 import {
   BookOpen,
   ChartColumn,
@@ -121,6 +123,12 @@ export function Sidebar({
   const currentUserRole = currentUser?.role ?? null;
   const [isDark, setIsDark] = useState(false);
 
+  // PROTOTYPE: notification UX variants — throwaway, gated behind ?variant=
+  const [searchParams] = useSearchParams();
+  const prototypeVariant = import.meta.env.PROD
+    ? null
+    : searchParams.get("variant");
+
   useEffect(() => {
     setIsDark(document.documentElement.classList.contains("dark"));
   }, []);
@@ -162,6 +170,8 @@ export function Sidebar({
               {item.label}
             </NavLink>
           ))}
+        {/* PROTOTYPE: variant C — Notifications nav item */}
+        {prototypeVariant === "c" && <PrototypeSidebarNavItem />}
         {isTeamAdmin && (
           <NavLink
             to="/team"
@@ -230,6 +240,8 @@ export function Sidebar({
 
         {currentUser && (
           <div className="flex items-center gap-3 rounded-md px-3 py-2">
+            {/* PROTOTYPE: variant A — bell in sidebar footer */}
+            {prototypeVariant === "a" && <PrototypeSidebarBell />}
             <UserAvatar
               name={currentUser.name}
               avatarUrl={currentUser.avatarUrl}
