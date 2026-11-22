@@ -50,7 +50,7 @@ const NO_PPP_RESTRICTION = {
 /** The owning Instructor or a Platform Admin speaks for this course. */
 export function isCourseManager(
   actor: CourseActorFacts,
-  course: CourseFacts | null
+  course: Pick<CourseFacts, "instructorId"> | null
 ): boolean {
   return actor.role === UserRole.Admin || course?.instructorId === actor.id;
 }
