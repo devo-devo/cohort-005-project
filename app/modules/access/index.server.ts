@@ -14,7 +14,6 @@ import { createCourseContentAccess } from "./lib/course-content-access-requests"
 export type {
   CourseManagerDecision,
   CourseManagerFacts,
-  CourseManagerView,
   InstructorOrPlatformAdminDecision,
   InstructorOrPlatformAdminFacts,
   InstructorOrPlatformAdminView,

@@ -9,14 +9,10 @@ import {
 } from "./actor-decisions";
 import type { CourseActorFacts } from "./course-content-access";
 import type { Db } from "./course-content-access-requests";
+import { signedOutDenial } from "./request-denials";
 
-const SIGNED_OUT_MESSAGE = "Select a user from the DevUI panel.";
 const NOT_COURSE_MANAGER_MESSAGE = "Only this course's instructor can do that.";
 const NOT_INSTRUCTOR_MESSAGE = "Only instructors can access this page.";
-
-function signedOut() {
-  return data(SIGNED_OUT_MESSAGE, { status: 401 });
-}
 
 // A falsy session id counts as signed out, as it always has in these guards.
 async function signedInActorId(request: Request): Promise<number | null> {
@@ -28,23 +24,22 @@ function findActor(database: Db, actorId: number): CourseActorFacts | null {
   return user ? { id: actorId, role: user.role } : null;
 }
 
-/**
- * Authorization guards bound to a database. The app uses the shared
- * `accessGuards` instance; tests build their own against a test database.
- */
 export function createAccessGuards(database: Db) {
   return {
-    /** Throws 401 unless someone is signed in. Returns their id. */
     async requireSignedInActor(request: Request): Promise<number> {
       const decision = decideSignedInActor(await signedInActorId(request));
-      if (!decision.allowed) throw signedOut();
+      if (!decision.allowed) throw signedOutDenial();
       return decision.actorId;
     },
 
-    /** Throws 401 when signed out, 403 when the actor cannot manage this course. */
     async requireCourseManager(request: Request, courseId: number) {
       const signedIn = decideSignedInActor(await signedInActorId(request));
-      if (!signedIn.allowed) throw signedOut();
+      if (!signedIn.allowed) throw signedOutDenial();
+
+      const actor = findActor(database, signedIn.actorId);
+      // A session can outlive its user row; this guard has always treated that
+      // as signed out rather than as a role failure.
+      if (!actor) throw signedOutDenial();
 
       const course = database
         .select()
@@ -52,20 +47,18 @@ export function createAccessGuards(database: Db) {
         .where(eq(courses.id, courseId))
         .get();
       const decision = decideCourseManagerAccess({
-        actor: findActor(database, signedIn.actorId),
+        actor,
         course: course ? { instructorId: course.instructorId } : null,
       });
       if (!decision.allowed) {
-        if (decision.reason === "signed-out") throw signedOut();
         throw data(NOT_COURSE_MANAGER_MESSAGE, { status: 403 });
       }
       return decision.view;
     },
 
-    /** Guards non-course-scoped Instructor areas and reports admin status. */
     async requireInstructorOrPlatformAdmin(request: Request) {
       const signedIn = decideSignedInActor(await signedInActorId(request));
-      if (!signedIn.allowed) throw signedOut();
+      if (!signedIn.allowed) throw signedOutDenial();
 
       const decision = decideInstructorOrPlatformAdminAccess({
         actor: findActor(database, signedIn.actorId),

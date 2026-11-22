@@ -708,8 +708,6 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     }
   }
 
-  // PPP Access Guard — resolved by the access module, which treats a blocked
-  // user as having no access to the course's content at all.
   const { pppBlocked, pppBlockedCountry, pppPurchaseCountry, canViewContent } =
     access;
 
