@@ -3,7 +3,7 @@ import { Link, useFetcher, useNavigate } from "react-router";
 import { toast } from "sonner";
 import type { Route } from "./+types/courses.$slug.lessons.$lessonId";
 import { getCurrentUserId } from "~/lib/session";
-import { getAccess, requireContentAccess } from "~/lib/access.server";
+import { courseContentAccess } from "~/modules/access/index.server";
 import { renderComment } from "~/lib/comment-markdown.server";
 import { markdown, type Markdown } from "~/lib/text";
 import {
@@ -669,8 +669,8 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     throw data("Lesson not found in this course", { status: 404 });
   }
 
-  const access = await getAccess(request, course.id);
-  const currentUserId = access.userId;
+  const access = await courseContentAccess.getView(request, course.id);
+  const currentUserId = access.actorId;
   const enrolled = access.enrolled;
   let lessonStatus: string | null = null;
   let lastWatchPosition = 0;
@@ -708,8 +708,8 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     }
   }
 
-  // PPP Access Guard — resolved by getAccess, which treats a blocked user as
-  // having no access to the course's content at all.
+  // PPP Access Guard — resolved by the access module, which treats a blocked
+  // user as having no access to the course's content at all.
   const { pppBlocked, pppBlockedCountry, pppPurchaseCountry, canViewContent } =
     access;
 
@@ -823,7 +823,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     pppPurchaseCountry,
     comments,
     canViewContent,
-    canModerate: access.isStaff,
+    canModerate: access.canManageCourse,
     instructorName: instructor?.name ?? "your instructor",
     bookmarked,
     note: note ? { body: note.body, updatedAt: note.updatedAt } : null,
@@ -853,7 +853,7 @@ export async function action({ params, request }: Route.ActionArgs) {
     intent === "edit-comment" ||
     intent === "delete-comment"
   ) {
-    const access = await requireContentAccess(request, course.id);
+    const access = await courseContentAccess.require(request, course.id);
 
     try {
       if (intent === "create-comment") {
@@ -908,7 +908,7 @@ export async function action({ params, request }: Route.ActionArgs) {
         db,
         parsed.data.commentId,
         currentUserId,
-        access.isStaff,
+        access.canManageCourse,
         new Date(),
         await defaultNotifications()
       );
@@ -927,7 +927,7 @@ export async function action({ params, request }: Route.ActionArgs) {
   // Bookmark and Note intents re-check access here, like the comment intents
   // above — loader guards don't protect actions.
   if (intent === "toggle-bookmark" || intent === "save-note") {
-    await requireContentAccess(request, course.id);
+    await courseContentAccess.require(request, course.id);
     requireLessonInCourse(lessonId, course.id);
 
     if (intent === "toggle-bookmark") {
