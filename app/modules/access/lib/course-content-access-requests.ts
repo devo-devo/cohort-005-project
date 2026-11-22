@@ -12,6 +12,7 @@ import {
   type CourseContentAccessView,
   type CourseContentFacts,
 } from "./course-content-access";
+import { signedOutDenial } from "./request-denials";
 
 export type Db = BetterSQLite3Database<typeof schema>;
 
@@ -76,14 +77,8 @@ async function resolveFacts(
   };
 }
 
-/**
- * Course content decisions bound to a database. The app uses the shared
- * `courseContentAccess` instance; tests build their own against a test
- * database.
- */
 export function createCourseContentAccess(database: Db) {
   return {
-    /** A view for pages that must render a paywall preview instead of throwing. */
     async getView(
       request: Request,
       courseId: number
@@ -93,7 +88,6 @@ export function createCourseContentAccess(database: Db) {
       );
     },
 
-    /** Throws the preserved 401/403 denial responses when access is missing. */
     async require(
       request: Request,
       courseId: number
@@ -102,9 +96,7 @@ export function createCourseContentAccess(database: Db) {
         await resolveFacts(database, request, courseId)
       );
       if (!decision.allowed) {
-        if (decision.reason === "signed-out") {
-          throw data("Select a user from the DevUI panel.", { status: 401 });
-        }
+        if (decision.reason === "signed-out") throw signedOutDenial();
         throw data("You must be enrolled in this course.", { status: 403 });
       }
       return decision.view;

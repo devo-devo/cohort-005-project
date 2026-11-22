@@ -1,60 +1,23 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { users, UserRole } from "~/db/schema";
-import { setCurrentUserId } from "~/lib/session";
-import { createTestDb, seedBaseData, type TestDb } from "~/test/setup";
+import { createTestDb, type TestDb } from "~/test/setup";
 import { createAccessGuards } from "../index.server";
+import {
+  deniedBy,
+  seedRequestFixtures,
+  signedInRequest,
+} from "./request-fixtures";
 
 const BASE_URL = "http://localhost/";
 
-type Denial = { status: number; message: string };
-
-function isDenial(
-  error: unknown
-): error is { data: string; init: { status: number } } {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "data" in error &&
-    "init" in error
-  );
-}
-
-async function deniedBy(run: () => Promise<unknown>): Promise<Denial> {
-  try {
-    await run();
-  } catch (error) {
-    if (isDenial(error)) {
-      return { status: error.init.status, message: error.data };
-    }
-    throw error;
-  }
-  throw new Error("Expected the access guard to deny the request");
-}
-
-async function signedInRequest(userId: number) {
-  const cookie = await setCurrentUserId(new Request(BASE_URL), userId);
-  return new Request(BASE_URL, { headers: { Cookie: cookie } });
-}
-
 describe("signed-in, course-manager and Instructor-area Request adapters", () => {
   let database: TestDb;
-  let fixtures: ReturnType<typeof seedBaseData>;
+  let fixtures: ReturnType<typeof seedRequestFixtures>;
   let guards: ReturnType<typeof createAccessGuards>;
-  let platformAdminId: number;
 
   beforeEach(() => {
     database = createTestDb();
-    fixtures = seedBaseData(database);
+    fixtures = seedRequestFixtures(database);
     guards = createAccessGuards(database);
-    platformAdminId = database
-      .insert(users)
-      .values({
-        name: "Test Platform Admin",
-        email: "admin@example.com",
-        role: UserRole.Admin,
-      })
-      .returning()
-      .get().id;
   });
 
   describe("requireSignedInActor", () => {
@@ -101,14 +64,18 @@ describe("signed-in, course-manager and Instructor-area Request adapters", () =>
 
     it("allows the owning Instructor and a Platform Admin", async () => {
       const instructor = await signedInRequest(fixtures.instructor.id);
-      const admin = await signedInRequest(platformAdminId);
+      const admin = await signedInRequest(fixtures.platformAdminId);
 
-      expect(await guards.requireCourseManager(instructor, fixtures.course.id)).toEqual({
+      expect(
+        await guards.requireCourseManager(instructor, fixtures.course.id)
+      ).toEqual({
         actorId: fixtures.instructor.id,
         canManageCourse: true,
       });
-      expect(await guards.requireCourseManager(admin, fixtures.course.id)).toEqual({
-        actorId: platformAdminId,
+      expect(
+        await guards.requireCourseManager(admin, fixtures.course.id)
+      ).toEqual({
+        actorId: fixtures.platformAdminId,
         canManageCourse: true,
       });
     });
@@ -152,14 +119,16 @@ describe("signed-in, course-manager and Instructor-area Request adapters", () =>
 
     it("returns the id and admin flag for an Instructor or Platform Admin", async () => {
       const instructor = await signedInRequest(fixtures.instructor.id);
-      const admin = await signedInRequest(platformAdminId);
+      const admin = await signedInRequest(fixtures.platformAdminId);
 
-      expect(await guards.requireInstructorOrPlatformAdmin(instructor)).toEqual({
-        userId: fixtures.instructor.id,
-        isAdmin: false,
-      });
+      expect(await guards.requireInstructorOrPlatformAdmin(instructor)).toEqual(
+        {
+          userId: fixtures.instructor.id,
+          isAdmin: false,
+        }
+      );
       expect(await guards.requireInstructorOrPlatformAdmin(admin)).toEqual({
-        userId: platformAdminId,
+        userId: fixtures.platformAdminId,
         isAdmin: true,
       });
     });

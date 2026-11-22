@@ -50,7 +50,7 @@ export type CourseManagerFacts = {
   course: { instructorId: number } | null;
 };
 
-export type CourseManagerView = { actorId: number; canManageCourse: true };
+type CourseManagerView = { actorId: number; canManageCourse: true };
 
 export type CourseManagerDecision =
   | { allowed: true; view: CourseManagerView }
